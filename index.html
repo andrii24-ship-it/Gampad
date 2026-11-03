@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -5,37 +6,52 @@
 <body style="font-family:sans-serif;text-align:center">
 <button id="c" style="font-size:24px;padding:16px">Підключити micro:bit</button>
 <p id="s">Не підключено</p>
+<pre id="d" style="font-size:18px">геймпад: ?</pre>
 <script>
 const SVC = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const RX  = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-let ch, last = "";
+let ch = null, last = "";
 
 document.getElementById("c").onclick = async () => {
-  const dev = await navigator.bluetooth.requestDevice({
-    filters: [{ namePrefix: "BBC micro:bit" }],
-    optionalServices: [SVC]
-  });
-  const srv = await dev.gatt.connect();
-  const svc = await srv.getPrimaryService(SVC);
-  ch = await svc.getCharacteristic(RX);
-  document.getElementById("s").textContent = "Підключено. Натисни щось на геймпаді.";
-  loop();
+  try {
+    const dev = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: "BBC micro:bit" }],
+      optionalServices: [SVC]
+    });
+    const srv = await dev.gatt.connect();
+    const svc = await srv.getPrimaryService(SVC);
+    ch = await svc.getCharacteristic(RX);
+    document.getElementById("s").textContent = "Підключено до micro:bit";
+  } catch (e) {
+    document.getElementById("s").textContent = "Помилка: " + e.message;
+  }
 };
 
+function send(cmd) {
+  if (!ch) return;
+  const data = new TextEncoder().encode(cmd + "\n");
+  ch.writeValueWithoutResponse(data).catch(() =>
+    ch.writeValue(data).catch(e =>
+      document.getElementById("s").textContent = "Помилка запису: " + e.message));
+}
+
 function loop() {
-  const gp = navigator.getGamepads()[0];
-  if (gp && ch) {
-    const x = gp.axes[0], y = gp.axes[1];
+  const gp = Array.from(navigator.getGamepads()).find(g => g);
+  const d = document.getElementById("d");
+  if (!gp) {
+    d.textContent = "геймпад не видно: натисни кнопку на ньому";
+  } else {
+    const x = gp.axes[0] || 0, y = gp.axes[1] || 0;
+    const b = i => gp.buttons[i] && gp.buttons[i].pressed;
     let cmd = "S";
-    if (y < -0.5 || gp.buttons[12].pressed) cmd = "F";
-    else if (y > 0.5 || gp.buttons[13].pressed) cmd = "B";
-    else if (x < -0.5 || gp.buttons[14].pressed) cmd = "L";
-    else if (x > 0.5 || gp.buttons[15].pressed) cmd = "R";
-    if (cmd !== last) {
-      last = cmd;
-      ch.writeValueWithoutResponse(new TextEncoder().encode(cmd + "\n")).catch(()=>{});
-    }
+    if (y < -0.5 || b(12)) cmd = "F";
+    else if (y > 0.5 || b(13)) cmd = "B";
+    else if (x < -0.5 || b(14)) cmd = "L";
+    else if (x > 0.5 || b(15)) cmd = "R";
+    d.textContent = "x=" + x.toFixed(2) + " y=" + y.toFixed(2) + "\nкоманда: " + cmd;
+    if (cmd !== last) { last = cmd; send(cmd); }
   }
   requestAnimationFrame(loop);
 }
+loop();
 </script></body></html>
