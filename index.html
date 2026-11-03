@@ -1,57 +1,49 @@
-
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PS4 → micro:bit</title></head>
-<body style="font-family:sans-serif;text-align:center">
-<button id="c" style="font-size:24px;padding:16px">Підключити micro:bit</button>
+<title>micro:bit пульт</title>
+<style>
+body{font-family:sans-serif;text-align:center;touch-action:manipulation;user-select:none}
+.pad{display:grid;grid-template-columns:repeat(3,90px);gap:10px;justify-content:center;margin-top:20px}
+.pad button{height:90px;font-size:36px;border-radius:16px}
+</style></head>
+<body>
+<button id="c" style="font-size:22px;padding:14px">Підключити micro:bit</button>
 <p id="s">Не підключено</p>
-<pre id="d" style="font-size:18px">геймпад: ?</pre>
+<div class="pad">
+<span></span><button data-c="F">▲</button><span></span>
+<button data-c="L">◀️</button><button data-c="S">■</button><button data-c="R">▶️</button>
+<span></span><button data-c="B">▼</button><span></span>
+</div>
 <script>
-const SVC = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-const RX  = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-let ch = null, last = "";
+const SVC="6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const RX="6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+let ch=null;
+const st=document.getElementById("s");
 
-document.getElementById("c").onclick = async () => {
-  try {
-    const dev = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: "BBC micro:bit" }],
-      optionalServices: [SVC]
-    });
-    const srv = await dev.gatt.connect();
-    const svc = await srv.getPrimaryService(SVC);
-    ch = await svc.getCharacteristic(RX);
-    document.getElementById("s").textContent = "Підключено до micro:bit";
-  } catch (e) {
-    document.getElementById("s").textContent = "Помилка: " + e.message;
-  }
+document.getElementById("c").onclick=async()=>{
+  try{
+    const dev=await navigator.bluetooth.requestDevice({
+      filters:[{namePrefix:"BBC micro:bit"}],optionalServices:[SVC]});
+    const srv=await dev.gatt.connect();
+    const svc=await srv.getPrimaryService(SVC);
+    ch=await svc.getCharacteristic(RX);
+    st.textContent="Підключено";
+  }catch(e){st.textContent="Помилка: "+e.message}
 };
 
-function send(cmd) {
-  if (!ch) return;
-  const data = new TextEncoder().encode(cmd + "\n");
-  ch.writeValueWithoutResponse(data).catch(() =>
-    ch.writeValue(data).catch(e =>
-      document.getElementById("s").textContent = "Помилка запису: " + e.message));
+function send(c){
+  if(!ch)return;
+  const d=new TextEncoder().encode(c+"\n");
+  ch.writeValueWithoutResponse(d).catch(()=>ch.writeValue(d).catch(()=>{}));
 }
 
-function loop() {
-  const gp = Array.from(navigator.getGamepads()).find(g => g);
-  const d = document.getElementById("d");
-  if (!gp) {
-    d.textContent = "геймпад не видно: натисни кнопку на ньому";
-  } else {
-    const x = gp.axes[0] || 0, y = gp.axes[1] || 0;
-    const b = i => gp.buttons[i] && gp.buttons[i].pressed;
-    let cmd = "S";
-    if (y < -0.5 || b(12)) cmd = "F";
-    else if (y > 0.5 || b(13)) cmd = "B";
-    else if (x < -0.5 || b(14)) cmd = "L";
-    else if (x > 0.5 || b(15)) cmd = "R";
-    d.textContent = "x=" + x.toFixed(2) + " y=" + y.toFixed(2) + "\nкоманда: " + cmd;
-    if (cmd !== last) { last = cmd; send(cmd); }
+document.querySelectorAll(".pad button").forEach(b=>{
+  const c=b.dataset.c;
+  b.addEventListener("pointerdown",e=>{e.preventDefault();send(c)});
+  if(c!=="S"){
+    ["pointerup","pointercancel","pointerleave"].forEach(ev=>
+      b.addEventListener(ev,()=>send("S")));
   }
-  requestAnimationFrame(loop);
-}
-loop();
+});
 </script></body></html>
